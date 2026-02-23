@@ -1,0 +1,24 @@
+.{
+    .name = .zgl,
+    .version = "0.0.0",
+    .fingerprint = 0xc89fe487e55c0609, // Changing this has security and trust implications.
+    .minimum_zig_version = "0.15.2",
+    .dependencies = .{
+        .glfw_zig = .{
+            .url = "git+https://github.com/tiawl/glfw.zig.git#1fa6a33148a6cd270585aabcf036b22b4c4d0fe2",
+            .hash = "glfw_zig-1.0.0-NrvYoy7SGQBMFFn2fvfCB3wjlq0I0ZRwJMrOfQ4GI21F",
+        },
+        .zig_glad = .{
+            .url = "git+https://github.com/jackparsonss/zig.glad.git#e973c2a302d8217f6f1a65f46f5222892fe26429",
+            .hash = "zig_glad-0.0.4-6OirnjjXBgDv6gERB59NTaXKyaHC9xidaDsn-qSgOZy3",
+        },
+    },
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+        // For example...
+        //"LICENSE",
+        //"README.md",
+    },
+}
