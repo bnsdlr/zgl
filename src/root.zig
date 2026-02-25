@@ -3,8 +3,10 @@ const builtin = @import("builtin");
 const c = @import("c.zig");
 const glfw = c.glfw;
 const gl = c.glad;
+const image = c.stb_image;
 
-const Shader = @import("helper/shader.zig");
+const Shader = @import("gfx/shader.zig");
+const Texture = @import("gfx/texture.zig");
 
 const Window = c.Window;
 
@@ -19,7 +21,11 @@ pub const glad_error = error{
     ShaderLinkingFailed,
 };
 
-pub fn run() (glad_error || glfw_error)!void {
+pub const stbi_error = error{
+    StbiFailedToLoadImage,
+};
+
+pub fn run() !void {
     const width = 1920;
     const height = 1080;
     const title = "zgl";
@@ -66,10 +72,17 @@ pub fn run() (glad_error || glfw_error)!void {
     defer gl.glDeleteProgram(shader.id);
 
     // vertex data and configure vertex attributes
-    const vertices = [_][6]f32{
-        .{ 0.5, -0.5, 0.0, 1.0, 0.0, 0.0 },
-        .{ -0.5, -0.5, 0.0, 0.0, 1.0, 0.0 },
-        .{ 0.0, 0.5, 0.0, 0.0, 0.0, 1.0 },
+    // const vertices = [_][6]f32{
+    //     .{ 0.5, -0.5, 0.0, 1.0, 0.0, 0.0 },
+    //     .{ -0.5, -0.5, 0.0, 0.0, 1.0, 0.0 },
+    //     .{ 0.0, 0.5, 0.0, 0.0, 0.0, 1.0 },
+    // };
+
+    const vertices = [_][8]f32{
+        .{ 0.5, 0.5, 0.0, 1.0, 0.0, 0.0, 1.0, 1.0 },
+        .{ 0.5, -0.5, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0 },
+        .{ -0.5, -0.5, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0 },
+        .{ -0.5, 0.5, 0.0, 1.0, 1.0, 0.0, 0.0, 1.0 },
     };
 
     // const indices = [_][3]u32{
@@ -77,7 +90,8 @@ pub fn run() (glad_error || glfw_error)!void {
     //     .{ 1, 2, 3 },
     // };
 
-    // buff 1
+    const texture: Texture = try .new("./assets/textures/wall.jpg");
+
     var vao: u32, var vbo: u32 = .{ 0, 0 };
     defer gl.glDeleteVertexArrays(1, &vao);
     defer gl.glDeleteBuffers(1, &vbo);
@@ -91,11 +105,14 @@ pub fn run() (glad_error || glfw_error)!void {
     gl.glBufferData(gl.GL_ARRAY_BUFFER, @sizeOf(@TypeOf(vertices)), &vertices, gl.GL_STATIC_DRAW);
 
     // position
-    gl.glVertexAttribPointer(0, 3, gl.GL_FLOAT, gl.GL_FALSE, 6 * @sizeOf(f32), @ptrFromInt(0));
+    gl.glVertexAttribPointer(0, 3, gl.GL_FLOAT, gl.GL_FALSE, 8 * @sizeOf(f32), @ptrFromInt(0));
     gl.glEnableVertexAttribArray(0);
     // color
-    gl.glVertexAttribPointer(1, 3, gl.GL_FLOAT, gl.GL_FALSE, 6 * @sizeOf(f32), @ptrFromInt(3 * @sizeOf(f32)));
+    gl.glVertexAttribPointer(1, 3, gl.GL_FLOAT, gl.GL_FALSE, 8 * @sizeOf(f32), @ptrFromInt(3 * @sizeOf(f32)));
     gl.glEnableVertexAttribArray(1);
+    // texture cords
+    gl.glVertexAttribPointer(2, 2, gl.GL_FLOAT, gl.GL_FALSE, 8 * @sizeOf(f32), @ptrFromInt(6 * @sizeOf(f32)));
+    gl.glEnableVertexAttribArray(2);
 
     gl.glBindVertexArray(0);
 
@@ -114,11 +131,12 @@ pub fn run() (glad_error || glfw_error)!void {
         gl.glClearColor(0.2, 0.5, 0.5, 1);
         gl.glClear(gl.GL_COLOR_BUFFER_BIT);
 
-        const time_value = glfw.glfwGetTime();
-        const horizontal_offset: f32 = @floatCast(std.math.sin(time_value));
+        // const time_value = glfw.glfwGetTime();
+        // const horizontal_offset: f32 = @floatCast(std.math.sin(time_value));
+        //
+        // shader.setFloat("horizontalOffset", horizontal_offset);
 
-        shader.setFloat("horizontalOffset", horizontal_offset);
-
+        gl.glBindTexture(gl.GL_TEXTURE_2D, texture.id);
         gl.glBindVertexArray(vao);
         gl.glDrawArrays(gl.GL_TRIANGLES, 0, 3);
         gl.glBindVertexArray(0);

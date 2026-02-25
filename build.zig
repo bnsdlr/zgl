@@ -17,14 +17,24 @@ pub fn build(b: *std.Build) void {
     const mod = b.addModule("zgl", .{
         .root_source_file = b.path("src/root.zig"),
         .target = target,
+        .link_libc = true,
     });
 
     mod.linkLibrary(glfw_dep.artifact("glfw"));
     mod.linkLibrary(glad_dep.artifact("glad"));
 
+    const stb_image: std.Build.Module.CSourceFile = .{
+        .file = b.path("src/stb_image_impl.c"),
+        .flags = &.{"-g","-O3"},
+    };
+
+    mod.addIncludePath(b.path("libs"));
+    mod.addCSourceFile(stb_image);
+
     const exe = b.addExecutable(.{
         .name = "zgl",
         .root_module = b.createModule(.{
+            .link_libc = true,
             .root_source_file = b.path("src/main.zig"),
             .target = target,
             .optimize = optimize,
