@@ -5,6 +5,8 @@ const glfw = c.glfw;
 const gl = c.glad;
 const image = c.stb_image;
 
+const Matrix = @import("math.zig").matrices.Matrix;
+
 const Shader = @import("gfx/shader.zig");
 const Texture = @import("gfx/texture.zig");
 
@@ -26,7 +28,7 @@ pub const stbi_error = error{
 };
 
 pub fn run() !void {
-    const width = 1920;
+    const width = 1080;
     const height = 1080;
     const title = "zgl";
 
@@ -67,8 +69,10 @@ pub fn run() !void {
     // gl.glPolygonMode(gl.GL_FRONT_AND_BACK, gl.GL_LINE);
 
     // build and compile shader program
-    const shader: Shader =
-        try .construct(@embedFile("assets/shaders/vertex.glsl"), @embedFile("assets/shaders/fragment.glsl"));
+    const shader: Shader = try .construct(
+        @embedFile("assets/shaders/vertex.glsl"), 
+        @embedFile("assets/shaders/fragment.glsl")
+    );
     defer gl.glDeleteProgram(shader.id);
 
     // vertex data and configure vertex attributes
@@ -79,18 +83,16 @@ pub fn run() !void {
     // };
 
     const vertices = [_][8]f32{
-        .{ 0.5, 0.5, 0.0, 1.0, 0.0, 0.0, 1.0, 1.0 },
-        .{ 0.5, -0.5, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0 },
-        .{ -0.5, -0.5, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0 },
-        .{ -0.5, 0.5, 0.0, 1.0, 1.0, 0.0, 0.0, 1.0 },
+        .{  0.5,  0.5, 0.0,     1.0, 0.0, 0.0,  1.0, 1.0 },     // top right
+        .{  0.5, -0.5, 0.0,     0.0, 1.0, 0.0,  1.0, 0.0 },     // bottom right
+        .{ -0.5, -0.5, 0.0,     0.0, 0.0, 1.0,  0.0, 0.0 },     // bottom left
+        .{ -0.5,  0.5, 0.0,     1.0, 1.0, 0.0,  0.0, 1.0 },     // top left
     };
 
-    // const indices = [_][3]u32{
-    //     .{ 0, 1, 3 },
-    //     .{ 1, 2, 3 },
-    // };
-
-    const texture: Texture = try .new("./assets/textures/wall.jpg");
+    const indices = [_][3]u32{
+        .{ 0, 1, 3 },
+        .{ 1, 2, 3 },
+    };
 
     var vao: u32, var vbo: u32 = .{ 0, 0 };
     defer gl.glDeleteVertexArrays(1, &vao);
@@ -103,6 +105,12 @@ pub fn run() !void {
 
     gl.glBindBuffer(gl.GL_ARRAY_BUFFER, vbo);
     gl.glBufferData(gl.GL_ARRAY_BUFFER, @sizeOf(@TypeOf(vertices)), &vertices, gl.GL_STATIC_DRAW);
+
+    var ebo: u32 = 0;
+    defer gl.glDeleteBuffers(1, &ebo);
+    gl.glGenBuffers(1, &ebo);
+    gl.glBindBuffer(gl.GL_ELEMENT_ARRAY_BUFFER, ebo);
+    gl.glBufferData(gl.GL_ELEMENT_ARRAY_BUFFER, @sizeOf(@TypeOf(indices)), &indices, gl.GL_STATIC_DRAW);
 
     // position
     gl.glVertexAttribPointer(0, 3, gl.GL_FLOAT, gl.GL_FALSE, 8 * @sizeOf(f32), @ptrFromInt(0));
@@ -118,27 +126,62 @@ pub fn run() !void {
 
     shader.use();
 
-    // var ebo: u32 = 0;
-    // defer gl.glDeleteBuffers(1, &ebo);
-    // gl.glGenBuffers(1, &ebo);
-    // gl.glBindBuffer(gl.GL_ELEMENT_ARRAY_BUFFER, ebo);
-    // gl.glBufferData(gl.GL_ELEMENT_ARRAY_BUFFER, @sizeOf(@TypeOf(indices)), &indices, gl.GL_STATIC_DRAW);
+    image.stbi_set_flip_vertically_on_load(1);
+
+    const texture_1: Texture = try .init(
+        "./assets/textures/wooden_container.jpg", gl.GL_TEXTURE_2D, gl.GL_RGB
+    );
+    gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_S, gl.GL_CLAMP_TO_EDGE);
+    gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_T, gl.GL_CLAMP_TO_EDGE);
+    gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, gl.GL_NEAREST);
+    gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER, gl.GL_NEAREST);
+    const texture_2: Texture = try .with_default_opts(
+        "./assets/textures/awesomeface.png", gl.GL_TEXTURE_2D, gl.GL_RGBA
+    );
+    gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, gl.GL_NEAREST);
+    gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER, gl.GL_NEAREST);
+
+    gl.glUniform1i(gl.glGetUniformLocation(shader.id, "texture1"), 0);
+    gl.glUniform1i(gl.glGetUniformLocation(shader.id, "texture2"), 1);
+
+    // var vec = @Vector(4, f32){1.0, 0.0, 0.0, 1.0};
+    var trans: Matrix(f32, 4, 4) = comptime .withIdentity(1);
+
+    for (0..8) |_| std.debug.print("\n", .{});
 
     // main loop
     while (glfw.glfwWindowShouldClose(window) == 0) {
-        processInput(window);
+        processInput(window, &shader);
 
-        gl.glClearColor(0.2, 0.5, 0.5, 1);
+        gl.glClearColor(0.2, 0.3, 0.3, 1);
         gl.glClear(gl.GL_COLOR_BUFFER_BIT);
 
-        // const time_value = glfw.glfwGetTime();
-        // const horizontal_offset: f32 = @floatCast(std.math.sin(time_value));
+        const time_value = glfw.glfwGetTime();
+        const angle_deg: f32 = (@as(f32, @floatCast(std.math.sin(time_value))) + 1) * 180;
+
+        for (0..8) |_| std.debug.print("\x1b[1A", .{});
+
+        var transformed = trans.transformed(
+            @Vector(3, f32){0.5, 0.5, 0.5},
+            std.math.degreesToRadians(angle_deg), .z, 
+            null
+        );
+
+        std.debug.print("{f}", .{transformed});
+
+        gl.glUniformMatrix4fv(gl.glGetUniformLocation(shader.id, "transform"), 1, gl.GL_FALSE, transformed.elementPtr());
+
         //
         // shader.setFloat("horizontalOffset", horizontal_offset);
 
-        gl.glBindTexture(gl.GL_TEXTURE_2D, texture.id);
+        gl.glActiveTexture(gl.GL_TEXTURE0);
+        gl.glBindTexture(gl.GL_TEXTURE_2D, texture_1.id);
+        gl.glActiveTexture(gl.GL_TEXTURE1);
+        gl.glBindTexture(gl.GL_TEXTURE_2D, texture_2.id);
+
         gl.glBindVertexArray(vao);
-        gl.glDrawArrays(gl.GL_TRIANGLES, 0, 3);
+        gl.glDrawElements(gl.GL_TRIANGLES, 6, gl.GL_UNSIGNED_INT, @ptrFromInt(0));
+        // gl.glDrawArrays(gl.GL_TRIANGLES, 0, 3);
         gl.glBindVertexArray(0);
 
         glfw.glfwSwapBuffers(window);
@@ -146,9 +189,21 @@ pub fn run() !void {
     }
 }
 
-fn processInput(window: Window) void {
+var curr_mix: f32 = 0.2;
+
+fn processInput(window: Window, shader_ptr: *const Shader) void {
     if (glfw.glfwGetKey(window, glfw.GLFW_KEY_ESCAPE) == glfw.GLFW_PRESS) {
         glfw.glfwSetWindowShouldClose(window, 1);
+    }
+
+    if (glfw.glfwGetKey(window, glfw.GLFW_KEY_UP) == glfw.GLFW_PRESS) {
+        if (curr_mix < 1.0) curr_mix += 0.01;
+        gl.glUniform1f(gl.glGetUniformLocation(shader_ptr.id, "mixPercentage"), curr_mix);
+    }
+
+    if (glfw.glfwGetKey(window, glfw.GLFW_KEY_DOWN) == glfw.GLFW_PRESS) {
+        if (curr_mix > 0.0) curr_mix -= 0.01;
+        gl.glUniform1f(gl.glGetUniformLocation(shader_ptr.id, "mixPercentage"), curr_mix);
     }
 }
 

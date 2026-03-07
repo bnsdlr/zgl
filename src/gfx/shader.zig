@@ -67,14 +67,14 @@ pub fn use(self: *const Self) void {
     gl.glUseProgram(self.id);
 }
 
-pub fn setBool(self: *const Self, name: [*:0]const u8, value: bool) void {
+pub fn set_bool(self: *const Self, name: [*:0]const u8, value: bool) void {
     gl.glUniform1i(gl.glGetUniformLocation(self.id, name), @bitCast(value));
 }
 
-pub fn setInt(self: *const Self, name: [*:0]const u8, value: c_int) void {
+pub fn set_int(self: *const Self, name: [*:0]const u8, value: c_int) void {
     gl.glUniform1i(gl.glGetUniformLocation(self.id, name), value);
 }
 
-pub fn setFloat(self: *const Self, name: [*:0]const u8, value: f32) void {
+pub fn set_float(self: *const Self, name: [*:0]const u8, value: f32) void {
     gl.glUniform1f(gl.glGetUniformLocation(self.id, name), value);
 }
