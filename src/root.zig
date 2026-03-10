@@ -4,8 +4,10 @@ const c = @import("c.zig");
 const glfw = c.glfw;
 const gl = c.glad;
 const image = c.stb_image;
+const glm = @import("glm.zig");
 
-const Matrix = @import("math.zig").matrices.Matrix;
+const Matrix4 = glm.Matrix4;
+const Vec3 = glm.Vec3;
 
 const Shader = @import("gfx/shader.zig");
 const Texture = @import("gfx/texture.zig");
@@ -41,6 +43,7 @@ pub fn run() !void {
     glfw.glfwWindowHint(glfw.GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfw.glfwWindowHint(glfw.GLFW_CONTEXT_VERSION_MINOR, 3);
     glfw.glfwWindowHint(glfw.GLFW_OPENGL_PROFILE, glfw.GLFW_OPENGL_CORE_PROFILE);
+    glfw.glfwWindowHint(glfw.GLFW_DECORATED, glfw.GLFW_FALSE);
 
     if (builtin.os.tag == .macos) {
         glfw.glfwWindowHint(glfw.GLFW_OPENGL_FORWARD_COMPAT, glfw.GLFW_TRUE);
@@ -144,10 +147,15 @@ pub fn run() !void {
     gl.glUniform1i(gl.glGetUniformLocation(shader.id, "texture1"), 0);
     gl.glUniform1i(gl.glGetUniformLocation(shader.id, "texture2"), 1);
 
-    // var vec = @Vector(4, f32){1.0, 0.0, 0.0, 1.0};
-    var trans: Matrix(f32, 4, 4) = comptime .withIdentity(1);
-
     for (0..8) |_| std.debug.print("\n", .{});
+
+    var model = glm.identity(1);
+    model.applyRotation(std.math.degreesToRadians(-55), .x);
+
+    var view = glm.identity(1);
+    view.applyTranslation(Vec3 {0, 0, -3});
+
+    var proj = glm.perspective(std.math.degreesToRadians(45), width / height, 0.1, 100);
 
     // main loop
     while (glfw.glfwWindowShouldClose(window) == 0) {
@@ -156,23 +164,28 @@ pub fn run() !void {
         gl.glClearColor(0.2, 0.3, 0.3, 1);
         gl.glClear(gl.GL_COLOR_BUFFER_BIT);
 
-        const time_value = glfw.glfwGetTime();
-        const angle_deg: f32 = (@as(f32, @floatCast(std.math.sin(time_value))) + 1) * 180;
+        gl.glUniform1f(gl.glGetUniformLocation(shader.id, "mixPercentage"), curr_mix);
 
-        for (0..8) |_| std.debug.print("\x1b[1A", .{});
+        gl.glUniformMatrix4fv(gl.glGetUniformLocation(shader.id, "model"), 1, gl.GL_TRUE, model.elementPtr());
+        gl.glUniformMatrix4fv(gl.glGetUniformLocation(shader.id, "view"), 1, gl.GL_TRUE, view.elementPtr());
+        gl.glUniformMatrix4fv(gl.glGetUniformLocation(shader.id, "projection"), 1, gl.GL_TRUE, proj.elementPtr());
 
-        var transformed = trans.transformed(
-            @Vector(3, f32){0.5, 0.5, 0.5},
-            std.math.degreesToRadians(angle_deg), .z, 
-            null
-        );
-
-        std.debug.print("{f}", .{transformed});
-
-        gl.glUniformMatrix4fv(gl.glGetUniformLocation(shader.id, "transform"), 1, gl.GL_FALSE, transformed.elementPtr());
-
+        // const time_value = glfw.glfwGetTime();
+        // const angle_deg: f32 = (@as(f32, @floatCast(std.math.sin(time_value))) + 1) * 180;
+        // const scale: f32 = (@as(f32, @floatCast(std.math.cos(time_value))));
         //
-        // shader.setFloat("horizontalOffset", horizontal_offset);
+        // for (0..8) |_| std.debug.print("\x1b[1A", .{});
+        //
+        // var trans = comptime glm.identity(1.0);
+        //
+        // trans.applyScale(@Vector(3, f32){scale, scale, scale});
+        // trans.applyRotation(std.math.degreesToRadians(angle_deg), .z);
+        // trans.applyScale(@Vector(3, f32){0.5, 0.5, 0.5});
+        // trans.applyTranslation(@Vector(3, f32){scale / 2, scale / 2, scale});
+        //
+        // std.debug.print("{f}", .{trans});
+        //
+        // gl.glUniformMatrix4fv(gl.glGetUniformLocation(shader.id, "transform"), 1, gl.GL_TRUE, trans.elementPtr());
 
         gl.glActiveTexture(gl.GL_TEXTURE0);
         gl.glBindTexture(gl.GL_TEXTURE_2D, texture_1.id);
@@ -181,7 +194,7 @@ pub fn run() !void {
 
         gl.glBindVertexArray(vao);
         gl.glDrawElements(gl.GL_TRIANGLES, 6, gl.GL_UNSIGNED_INT, @ptrFromInt(0));
-        // gl.glDrawArrays(gl.GL_TRIANGLES, 0, 3);
+
         gl.glBindVertexArray(0);
 
         glfw.glfwSwapBuffers(window);
@@ -189,7 +202,7 @@ pub fn run() !void {
     }
 }
 
-var curr_mix: f32 = 0.2;
+var curr_mix: f32 = 0.5;
 
 fn processInput(window: Window, shader_ptr: *const Shader) void {
     if (glfw.glfwGetKey(window, glfw.GLFW_KEY_ESCAPE) == glfw.GLFW_PRESS) {

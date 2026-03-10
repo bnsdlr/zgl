@@ -44,10 +44,10 @@ pub fn Matrix(comptime T: type, row_count: usize, col_count: usize) type {
         pub const Transpose = Matrix(T, cols, rows);
 
         /// All elements are undefined.
-        const empty: Self = .{};
+        pub const empty: Self = .{};
 
         /// All elements are initizalized to 0.
-        const zeroes: Self = .{
+        pub const zeroes: Self = .{
             .elements = [_]T{0} ** element_count,
         };
 
@@ -55,12 +55,6 @@ pub fn Matrix(comptime T: type, row_count: usize, col_count: usize) type {
             return .{
                 .elements = elements,
             };
-        }
-
-        pub fn withIdentity(value: T) Self {
-            var mat: Self = .zeroes;
-            for (0..if (rows > cols) cols else rows) |i| mat.setUnchecked(i, i, value);
-            return mat;
         }
 
         pub fn copy(other: *const Self) Self {
@@ -644,20 +638,20 @@ test "Matrix initializations" {
         0, 0,
     })));
 
-    try expect(Matrix(u1, 4, 4).withIdentity(1).eql(&.init(.{
+    try expect(Matrix(u1, 4, 4).identity(1).eql(&.init(.{
         1, 0, 0, 0,
         0, 1, 0, 0,
         0, 0, 1, 0,
         0, 0, 0, 1,
     })));
 
-    try expect(Matrix(u1, 3, 4).withIdentity(1).eql(&.init(.{
+    try expect(Matrix(u1, 3, 4).identity(1).eql(&.init(.{
         1, 0, 0, 0,
         0, 1, 0, 0,
         0, 0, 1, 0,
     })));
 
-    var mat1: Matrix(u1, 4, 3) = comptime .withIdentity(1);
+    var mat1: Matrix(u1, 4, 3) = comptime .identity(1);
 
     try expect(mat1.eql(&.init(.{
         1, 0, 0,
@@ -845,8 +839,8 @@ test "Matrix dot product" {
 }
 
 test "Matrix transforming" {
-    var mat1: Matrix(f32, 4, 4) = .withIdentity(1.0);
-    var mat2: Matrix(f32, 4, 4) = .withIdentity(1.0);
+    var mat1: Matrix(f32, 4, 4) = .identity(1.0);
+    var mat2: Matrix(f32, 4, 4) = .identity(1.0);
 
     const scaler = @Vector(3, f32){3.0, 2.0, 1.0};
     const angle = std.math.degreesToRadians(90);

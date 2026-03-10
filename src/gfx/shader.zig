@@ -2,6 +2,8 @@ const std = @import("std");
 const c = @import("../c.zig");
 const gl = c.glad;
 
+const Matrix = @import("../glm.zig").matrices.Matrix;
+
 id: u32 = 0,
 
 const Self = @This();
@@ -67,14 +69,38 @@ pub fn use(self: *const Self) void {
     gl.glUseProgram(self.id);
 }
 
-pub fn set_bool(self: *const Self, name: [*:0]const u8, value: bool) void {
+pub fn setBool(self: *const Self, name: [*:0]const u8, value: bool) void {
     gl.glUniform1i(gl.glGetUniformLocation(self.id, name), @bitCast(value));
 }
 
-pub fn set_int(self: *const Self, name: [*:0]const u8, value: c_int) void {
+pub fn setInt(self: *const Self, name: [*:0]const u8, value: c_int) void {
     gl.glUniform1i(gl.glGetUniformLocation(self.id, name), value);
 }
 
-pub fn set_float(self: *const Self, name: [*:0]const u8, value: f32) void {
+pub fn setFloat(self: *const Self, name: [*:0]const u8, value: f32) void {
     gl.glUniform1f(gl.glGetUniformLocation(self.id, name), value);
+}
+
+pub fn setVec2(self: *const Self, name: [*:0]const u8, x: f32, y: f32) void {
+    gl.glUniform2fv(gl.glGetUniformLocation(self.id, name), x, y);
+}
+
+pub fn setVec3(self: *const Self, name: [*:0]const u8, x: f32, y: f32, z: f32) void {
+    gl.glUniform3fv(gl.glGetUniformLocation(self.id, name), x, y, z);
+}
+
+pub fn setVec4(self: *const Self, name: [*:0]const u8, x: f32, y: f32, z: f32, w: f32) void {
+    gl.glUniform4fv(gl.glGetUniformLocation(self.id, name), x, y, z, w);
+}
+
+pub fn setMat2(self: *const Self, name: [*:0]const u8, matrix: Matrix(f32, 2, 2)) void {
+    gl.glUniformMatrix2fv(gl.glGetUniformLocation(self.id, name), 1, gl.GL_TRUE, matrix.elementPtr());
+}
+
+pub fn setMat3(self: *const Self, name: [*:0]const u8, matrix: Matrix(f32, 3, 3)) void {
+    gl.glUniformMatrix3fv(gl.glGetUniformLocation(self.id, name), 1, gl.GL_TRUE, matrix.elementPtr());
+}
+
+pub fn setMat4(self: *const Self, name: [*:0]const u8, matrix: Matrix(f32, 4, 4)) void {
+    gl.glUniformMatrix4fv(gl.glGetUniformLocation(self.id, name), 1, gl.GL_TRUE, matrix.elementPtr());
 }
