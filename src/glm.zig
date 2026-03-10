@@ -89,7 +89,7 @@ pub fn perspective(fov: f32, aspect: f32, near: f32, far: f32) Matrix4 {
     return .init(.{
         f / aspect, 0, 0, 0,
         0, f, 0, 0,
-        0, 0, (far + near) / (far - near), (2 * far * near) / (far - near),
+        0, 0, (far + near) / (near - far), (2 * far * near) / (near - far),
         0, 0, -1, 0,
     });
 }

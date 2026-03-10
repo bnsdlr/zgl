@@ -69,6 +69,8 @@ pub fn run() !void {
 
     _ = glfw.glfwSetFramebufferSizeCallback(window, &framebufferSizeCallback);
 
+    gl.glEnable(gl.GL_DEPTH_TEST);
+
     // gl.glPolygonMode(gl.GL_FRONT_AND_BACK, gl.GL_LINE);
 
     // build and compile shader program
@@ -78,23 +80,48 @@ pub fn run() !void {
     );
     defer gl.glDeleteProgram(shader.id);
 
-    // vertex data and configure vertex attributes
-    // const vertices = [_][6]f32{
-    //     .{ 0.5, -0.5, 0.0, 1.0, 0.0, 0.0 },
-    //     .{ -0.5, -0.5, 0.0, 0.0, 1.0, 0.0 },
-    //     .{ 0.0, 0.5, 0.0, 0.0, 0.0, 1.0 },
-    // };
+    const vertices = [_][5]f32{
+        .{-0.5, -0.5, -0.5,  0.0, 0.0},
+        .{ 0.5, -0.5, -0.5,  1.0, 0.0},
+        .{ 0.5,  0.5, -0.5,  1.0, 1.0},
+        .{ 0.5,  0.5, -0.5,  1.0, 1.0},
+        .{-0.5,  0.5, -0.5,  0.0, 1.0},
+        .{-0.5, -0.5, -0.5,  0.0, 0.0},
 
-    const vertices = [_][8]f32{
-        .{  0.5,  0.5, 0.0,     1.0, 0.0, 0.0,  1.0, 1.0 },     // top right
-        .{  0.5, -0.5, 0.0,     0.0, 1.0, 0.0,  1.0, 0.0 },     // bottom right
-        .{ -0.5, -0.5, 0.0,     0.0, 0.0, 1.0,  0.0, 0.0 },     // bottom left
-        .{ -0.5,  0.5, 0.0,     1.0, 1.0, 0.0,  0.0, 1.0 },     // top left
-    };
+        .{-0.5, -0.5,  0.5,  0.0, 0.0},
+        .{ 0.5, -0.5,  0.5,  1.0, 0.0},
+        .{ 0.5,  0.5,  0.5,  1.0, 1.0},
+        .{ 0.5,  0.5,  0.5,  1.0, 1.0},
+        .{-0.5,  0.5,  0.5,  0.0, 1.0},
+        .{-0.5, -0.5,  0.5,  0.0, 0.0},
 
-    const indices = [_][3]u32{
-        .{ 0, 1, 3 },
-        .{ 1, 2, 3 },
+        .{-0.5,  0.5,  0.5,  1.0, 0.0},
+        .{-0.5,  0.5, -0.5,  1.0, 1.0},
+        .{-0.5, -0.5, -0.5,  0.0, 1.0},
+        .{-0.5, -0.5, -0.5,  0.0, 1.0},
+        .{-0.5, -0.5,  0.5,  0.0, 0.0},
+        .{-0.5,  0.5,  0.5,  1.0, 0.0},
+
+        .{ 0.5,  0.5,  0.5,  1.0, 0.0},
+        .{ 0.5,  0.5, -0.5,  1.0, 1.0},
+        .{ 0.5, -0.5, -0.5,  0.0, 1.0},
+        .{ 0.5, -0.5, -0.5,  0.0, 1.0},
+        .{ 0.5, -0.5,  0.5,  0.0, 0.0},
+        .{ 0.5,  0.5,  0.5,  1.0, 0.0},
+         
+        .{-0.5, -0.5, -0.5,  0.0, 1.0},
+        .{ 0.5, -0.5, -0.5,  1.0, 1.0},
+        .{ 0.5, -0.5,  0.5,  1.0, 0.0},
+        .{ 0.5, -0.5,  0.5,  1.0, 0.0},
+        .{-0.5, -0.5,  0.5,  0.0, 0.0},
+        .{-0.5, -0.5, -0.5,  0.0, 1.0},
+
+        .{-0.5,  0.5, -0.5,  0.0, 1.0},
+        .{ 0.5,  0.5, -0.5,  1.0, 1.0},
+        .{ 0.5,  0.5,  0.5,  1.0, 0.0},
+        .{ 0.5,  0.5,  0.5,  1.0, 0.0},
+        .{-0.5,  0.5,  0.5,  0.0, 0.0},
+        .{-0.5,  0.5, -0.5,  0.0, 1.0},
     };
 
     var vao: u32, var vbo: u32 = .{ 0, 0 };
@@ -109,21 +136,12 @@ pub fn run() !void {
     gl.glBindBuffer(gl.GL_ARRAY_BUFFER, vbo);
     gl.glBufferData(gl.GL_ARRAY_BUFFER, @sizeOf(@TypeOf(vertices)), &vertices, gl.GL_STATIC_DRAW);
 
-    var ebo: u32 = 0;
-    defer gl.glDeleteBuffers(1, &ebo);
-    gl.glGenBuffers(1, &ebo);
-    gl.glBindBuffer(gl.GL_ELEMENT_ARRAY_BUFFER, ebo);
-    gl.glBufferData(gl.GL_ELEMENT_ARRAY_BUFFER, @sizeOf(@TypeOf(indices)), &indices, gl.GL_STATIC_DRAW);
-
     // position
-    gl.glVertexAttribPointer(0, 3, gl.GL_FLOAT, gl.GL_FALSE, 8 * @sizeOf(f32), @ptrFromInt(0));
+    gl.glVertexAttribPointer(0, 3, gl.GL_FLOAT, gl.GL_FALSE, 5 * @sizeOf(f32), @ptrFromInt(0));
     gl.glEnableVertexAttribArray(0);
-    // color
-    gl.glVertexAttribPointer(1, 3, gl.GL_FLOAT, gl.GL_FALSE, 8 * @sizeOf(f32), @ptrFromInt(3 * @sizeOf(f32)));
+    // texture
+    gl.glVertexAttribPointer(1, 2, gl.GL_FLOAT, gl.GL_FALSE, 5 * @sizeOf(f32), @ptrFromInt(3 * @sizeOf(f32)));
     gl.glEnableVertexAttribArray(1);
-    // texture cords
-    gl.glVertexAttribPointer(2, 2, gl.GL_FLOAT, gl.GL_FALSE, 8 * @sizeOf(f32), @ptrFromInt(6 * @sizeOf(f32)));
-    gl.glEnableVertexAttribArray(2);
 
     gl.glBindVertexArray(0);
 
@@ -147,53 +165,34 @@ pub fn run() !void {
     gl.glUniform1i(gl.glGetUniformLocation(shader.id, "texture1"), 0);
     gl.glUniform1i(gl.glGetUniformLocation(shader.id, "texture2"), 1);
 
-    for (0..8) |_| std.debug.print("\n", .{});
-
-    var model = glm.identity(1);
-    model.applyRotation(std.math.degreesToRadians(-55), .x);
-
-    var view = glm.identity(1);
-    view.applyTranslation(Vec3 {0, 0, -3});
-
-    var proj = glm.perspective(std.math.degreesToRadians(45), width / height, 0.1, 100);
-
     // main loop
     while (glfw.glfwWindowShouldClose(window) == 0) {
         processInput(window, &shader);
 
         gl.glClearColor(0.2, 0.3, 0.3, 1);
-        gl.glClear(gl.GL_COLOR_BUFFER_BIT);
-
-        gl.glUniform1f(gl.glGetUniformLocation(shader.id, "mixPercentage"), curr_mix);
-
-        gl.glUniformMatrix4fv(gl.glGetUniformLocation(shader.id, "model"), 1, gl.GL_TRUE, model.elementPtr());
-        gl.glUniformMatrix4fv(gl.glGetUniformLocation(shader.id, "view"), 1, gl.GL_TRUE, view.elementPtr());
-        gl.glUniformMatrix4fv(gl.glGetUniformLocation(shader.id, "projection"), 1, gl.GL_TRUE, proj.elementPtr());
-
-        // const time_value = glfw.glfwGetTime();
-        // const angle_deg: f32 = (@as(f32, @floatCast(std.math.sin(time_value))) + 1) * 180;
-        // const scale: f32 = (@as(f32, @floatCast(std.math.cos(time_value))));
-        //
-        // for (0..8) |_| std.debug.print("\x1b[1A", .{});
-        //
-        // var trans = comptime glm.identity(1.0);
-        //
-        // trans.applyScale(@Vector(3, f32){scale, scale, scale});
-        // trans.applyRotation(std.math.degreesToRadians(angle_deg), .z);
-        // trans.applyScale(@Vector(3, f32){0.5, 0.5, 0.5});
-        // trans.applyTranslation(@Vector(3, f32){scale / 2, scale / 2, scale});
-        //
-        // std.debug.print("{f}", .{trans});
-        //
-        // gl.glUniformMatrix4fv(gl.glGetUniformLocation(shader.id, "transform"), 1, gl.GL_TRUE, trans.elementPtr());
+        gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT);
 
         gl.glActiveTexture(gl.GL_TEXTURE0);
         gl.glBindTexture(gl.GL_TEXTURE_2D, texture_1.id);
         gl.glActiveTexture(gl.GL_TEXTURE1);
         gl.glBindTexture(gl.GL_TEXTURE_2D, texture_2.id);
 
+        gl.glUniform1f(gl.glGetUniformLocation(shader.id, "mixPercentage"), curr_mix);
+
+        var model = glm.identity(1);
+        model.applyRotation(@as(f32, @floatCast(glfw.glfwGetTime())) * std.math.degreesToRadians(50), .{ .x = 0.5, .y = 1 });
+        var view = glm.identity(1);
+        view.applyTranslation(Vec3 {0, 0, -3});
+        var proj = glm.perspective(std.math.degreesToRadians(45), width / height, 0.1, 100);
+        // var proj = glm.ortho(0, width, 0, height, 0.1, 100);
+
+        gl.glUniformMatrix4fv(gl.glGetUniformLocation(shader.id, "model"), 1, gl.GL_TRUE, model.elementPtr());
+        gl.glUniformMatrix4fv(gl.glGetUniformLocation(shader.id, "view"), 1, gl.GL_TRUE, view.elementPtr());
+        gl.glUniformMatrix4fv(gl.glGetUniformLocation(shader.id, "projection"), 1, gl.GL_TRUE, proj.elementPtr());
+
         gl.glBindVertexArray(vao);
-        gl.glDrawElements(gl.GL_TRIANGLES, 6, gl.GL_UNSIGNED_INT, @ptrFromInt(0));
+
+        gl.glDrawArrays(gl.GL_TRIANGLES, 0, 36);
 
         gl.glBindVertexArray(0);
 

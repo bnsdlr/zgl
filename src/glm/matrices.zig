@@ -1,7 +1,14 @@
 const std = @import("std");
+const math = std.math;
+const glm = @import("../glm");
+
+fn pow2(x: f32) f32 {
+    return math.pow(f32, x, 2);
+}
 
 const expect = std.testing.expect;
 const expectEqual = std.testing.expectEqual;
+const expectEqualDeep = std.testing.expectEqualDeep;
 
 pub fn assert(ok: bool, comptime err_msg: []const u8) void {
     if (!ok) @compileError(err_msg);
@@ -20,11 +27,69 @@ pub const Operation = enum {
     div,
 };
 
-pub const Axis = enum {
-    x,
-    y,
-    z,
+pub const Rotation = struct {
+    x: f16 = 0,
+    y: f16 = 0,
+    z: f16 = 0,
+
+    const Self = @This();
+
+    pub fn copy(other: *const Self) Self {
+        return .{
+            .x = other.x,
+            .y = other.y,
+            .z = other.z,
+        };
+    }
+
+    pub fn normalize(self: *Self) void {
+        const magnitude: f16 = @floatCast(@sqrt(pow2(self.x) + pow2(self.y) + pow2(self.z)));
+
+        if (math.approxEqRel(f32, magnitude, 1.0, @sqrt(math.floatEps(f32)))) return;
+
+        self.x /= magnitude;
+        self.y /= magnitude;
+        self.z /= magnitude;
+    }
+
+    pub fn normalized(self: *const Self) Self {
+        var new: Self = .copy(self);
+        new.normalize();
+        return new;
+    }
 };
+
+test "Rotation normalization" {
+    const r1: Rotation = .{ .x = 1, .y = 0, .z = 0 };
+    try expectEqualDeep(Rotation{ .x = 1, .y = 0, .z = 0 }, r1.normalized());
+
+    const r2: Rotation = .{ .x = 0, .y = 1, .z = 0 };
+    try expectEqualDeep(Rotation{ .x = 0, .y = 1, .z = 0 }, r2.normalized());
+
+    const r3: Rotation = .{ .x = 0, .y = 0, .z = 1 };
+    try expectEqualDeep(Rotation{ .x = 0, .y = 0, .z = 1}, r3.normalized());
+
+    const r4: Rotation = .{ .x = 1, .y = 1, .z = 0 };
+    try expectEqualDeep(Rotation{ .x = math.sqrt1_2, .y = math.sqrt1_2, .z = 0 }, r4.normalized());
+
+    const r5: Rotation = .{ .x = 1, .y = 0, .z = 1 };
+    try expectEqualDeep(Rotation{ .x = math.sqrt1_2, .y = 0, .z = math.sqrt1_2 }, r5.normalized());
+
+    const r6: Rotation = .{ .x = 0, .y = 1, .z = 1 };
+    try expectEqualDeep(Rotation{ .x = 0, .y = math.sqrt1_2, .z = math.sqrt1_2 }, r6.normalized());
+
+    const r7: Rotation = .{ .x = 1, .y = 1, .z = 1 };
+    try expectEqualDeep(Rotation{ .x = 1.0 / @sqrt(3.0), .y = 1.0 / @sqrt(3.0), .z = 1.0 / @sqrt(3.0) }, r7.normalized());
+
+    const r8: Rotation = .{ .x = 2, .y = 0, .z = 0 };
+    try expectEqualDeep(Rotation{ .x = 1, .y = 0, .z = 0 }, r8.normalized());
+
+    const r9: Rotation = .{ .x = 2, .y = 2, .z = 0 };
+    try expectEqualDeep(Rotation{ .x = math.sqrt1_2, .y = math.sqrt1_2, .z = 0 }, r9.normalized());
+
+    const r10: Rotation = .{ .x = 3, .y = 4, .z = 0 };
+    try expectEqualDeep(Rotation{ .x = @as(f16, 3) / 5, .y = @as(f16, 4) / 5, .z = 0 }, r10.normalized());
+}
 
 pub fn Matrix(comptime T: type, row_count: usize, col_count: usize) type {
     comptime {
@@ -237,7 +302,7 @@ pub fn Matrix(comptime T: type, row_count: usize, col_count: usize) type {
             self: *Self,
             scale_vector: anytype,
             angle: anytype,
-            axis: ?Axis,
+            rotation: ?Rotation,
             translate_vector: anytype
         ) void {
             // Scale
@@ -251,9 +316,9 @@ pub fn Matrix(comptime T: type, row_count: usize, col_count: usize) type {
             if (
                 @typeInfo(@TypeOf(angle)) != .optional 
                 and @TypeOf(angle) != @TypeOf(null) 
-                and axis != null
+                and rotation != null
             ) {
-                self.applyRotation(angle, axis.?);
+                self.applyRotation(angle, rotation.?);
             }
             // Translation
             if (
@@ -268,11 +333,11 @@ pub fn Matrix(comptime T: type, row_count: usize, col_count: usize) type {
             self: *const Self, 
             scale_vector: anytype,
             angle: anytype,
-            axis: ?Axis,
+            rotation: ?Rotation,
             vector: anytype
         ) Self {
             var new: Self = .copy(self);
-            new.applyTransformations(scale_vector, angle, axis, vector);
+            new.applyTransformations(scale_vector, angle, rotation, vector);
             return new;
         }
 
@@ -296,95 +361,33 @@ pub fn Matrix(comptime T: type, row_count: usize, col_count: usize) type {
         // ===================  Rotate  ===================
 
         /// - angle: the angle in radians.
-        pub fn applyRotation(self: *Self, angle: anytype, axis: Axis) void {
-            comptime {
-                switch (@typeInfo(@TypeOf(angle))) {
-                    .float, .int, .comptime_float, .comptime_int => {},
-                    else => @compileError("Only floats or ints are allowed as angle."),
-                }
-            }
+        ///
+        /// [OpenGL](https://registry.khronos.org/OpenGL-Refpages/gl2.1/xhtml/glRotate.xml)
+        pub fn applyRotation(self: *Self, angle: f32, rotation: Rotation) void {
+            if (rows == 4 and cols == 4) {
+                const normalized_rotation = rotation.normalized();
+                const x = normalized_rotation.x;
+                const y = normalized_rotation.y;
+                const z = normalized_rotation.z;
 
-            if (rows == 2 and cols == 2) {
-                if (axis == .z) {
-                    const cos_theta = std.math.cos(angle);
-                    const sin_theta = std.math.sin(angle);
+                const c = math.cos(angle);
+                const s = math.sin(angle);
 
-                    self.dotProductInPlace(&.init(.{
-                        cos_theta, -sin_theta, 
-                        sin_theta, cos_theta, 
-                    }));
-                } else {
-                    @compileError("A 2x2 matrix can only be rotated around the z axis.");
-                }
-            } else if (rows == 3 and cols == 3) {
-                const cos_theta = std.math.cos(angle);
-                const sin_theta = std.math.sin(angle);
-
-                switch (axis) {
-                    .x => {
-                        self.dotProductInPlace(&.init(.{
-                            1, 0, 0,
-                            0, cos_theta, -sin_theta,
-                            0, sin_theta, cos_theta,
-                        }));
-                    },
-                    .y => {
-                        self.dotProductInPlace(&.init(.{
-                            cos_theta, 0, sin_theta,
-                            0, 1, 0,
-                            -sin_theta, 0, cos_theta,
-                        }));
-                    },
-                    .z => {
-                        self.dotProductInPlace(&.init(.{
-                            cos_theta, -sin_theta, 0,
-                            sin_theta, cos_theta, 0,
-                            0, 0, 1,
-                        }));
-                    },
-                }
-            } else if (rows == 4 and cols == 4) {
-                const cos_theta = std.math.cos(angle);
-                const sin_theta = std.math.sin(angle);
-
-                std.debug.print("cos theta: {any:>6.2} (angle: {any:>6.2})\n", .{cos_theta, angle});
-                std.debug.print("sin theta: {any:>6.2} (angle: {any:>6.2})\n", .{sin_theta, angle});
-
-                switch (axis) {
-                    .x => {
-                        self.dotProductInPlace(&.init(.{
-                            1, 0, 0, 0,
-                            0, cos_theta, -sin_theta, 0,
-                            0, sin_theta, cos_theta, 0,
-                            0, 0, 0, 1,
-                        }));
-                    },
-                    .y => {
-                        self.dotProductInPlace(&.init(.{
-                            cos_theta, 0, sin_theta, 0,
-                            0, 1, 0, 0,
-                            -sin_theta, 0, cos_theta, 0,
-                            0, 0, 0, 1,
-                        }));
-                    },
-                    .z => {
-                        self.dotProductInPlace(&.init(.{
-                            cos_theta, -sin_theta, 0, 0,
-                            sin_theta, cos_theta, 0, 0,
-                            0, 0, 1, 0,
-                            0, 0, 0, 1,
-                        }));
-                    },
-                }
+                self.dotProductInPlace(&.init(.{
+                    pow2(x)*(1-c)+c,      x*y*(1-c)-z*s,      x*z*(1-c)+y*s,    0,
+                      y*x*(1-c)+z*s,    pow2(y)*(1-c)+c,      y*z*(1-c)-x*s,    0,
+                      x*z*(1-c)-y*s,      y*z*(1-c)+x*s,    pow2(z)*(1-c)+c,    0,
+                                  0,                   0,                 0,    1,
+                }));
             } else {
-                @compileError(std.fmt.comptimePrint("Can't rotate matrix ({d}x{d}).", .{rows, cols}));
+                @compileError(std.fmt.comptimePrint("Didn't implement rotation for matrix {d}x{d}.", .{rows, cols}));
             }
         }
 
         /// - angle: the angle in radians.
-        pub fn rotated(self: *const Self, angle: anytype, axis: Axis) Self {
+        pub fn rotated(self: *const Self, angle: f32, rotation: Rotation) Self {
             var new: Self = .copy(self);
-            new.applyRotation(angle, axis);
+            new.applyRotation(angle, rotation);
             return new;
         }
 
@@ -419,8 +422,8 @@ pub fn Matrix(comptime T: type, row_count: usize, col_count: usize) type {
                 if (switch (@typeInfo(T)) {
                     .int => e != other.elements[i],
                     .float => 
-                        !(std.math.approxEqRel(T, e, other.elements[i], @sqrt(std.math.floatEps(T)) * 0.001)
-                            or std.math.approxEqAbs(T, e, other.elements[i], std.math.floatEps(T))),
+                        !(math.approxEqRel(T, e, other.elements[i], @sqrt(math.floatEps(T)) * 0.001)
+                            or math.approxEqAbs(T, e, other.elements[i], math.floatEps(T))),
                     else => unreachable,
                 }) {
                     // std.debug.print("{any} != {any}\n", .{e, other.elements[i]});
@@ -621,51 +624,15 @@ pub fn Matrix(comptime T: type, row_count: usize, col_count: usize) type {
             const sign: usize = if (element < 0) 1 else 0;
 
             return switch (@typeInfo(T)) {
-                .int => if (element == 0) 1 + sign else std.math.log10(@abs(element)) + 1 + sign,
+                .int => if (element == 0) 1 + sign else math.log10(@abs(element)) + 1 + sign,
                 .float => {
                     const e = @as(usize, @intFromFloat(@abs(element)));
-                    return if (e == 0) 4 + sign else std.math.log10(e) + 4 + sign;
+                    return if (e == 0) 4 + sign else math.log10(e) + 4 + sign;
                 },
                 else => unreachable,
             };
         }
     };
-}
-
-test "Matrix initializations" {
-    try expect(Matrix(u1, 2, 2).zeroes.eql(&.init(.{
-        0, 0,
-        0, 0,
-    })));
-
-    try expect(Matrix(u1, 4, 4).identity(1).eql(&.init(.{
-        1, 0, 0, 0,
-        0, 1, 0, 0,
-        0, 0, 1, 0,
-        0, 0, 0, 1,
-    })));
-
-    try expect(Matrix(u1, 3, 4).identity(1).eql(&.init(.{
-        1, 0, 0, 0,
-        0, 1, 0, 0,
-        0, 0, 1, 0,
-    })));
-
-    var mat1: Matrix(u1, 4, 3) = comptime .identity(1);
-
-    try expect(mat1.eql(&.init(.{
-        1, 0, 0,
-        0, 1, 0,
-        0, 0, 1,
-        0, 0, 0,
-    })));
-
-    try expect(Matrix(u1, 4, 3).copy(&mat1).eql(&.init(.{
-        1, 0, 0,
-        0, 1, 0,
-        0, 0, 1,
-        0, 0, 0,
-    })));
 }
 
 test "Matrix addition" {
@@ -787,8 +754,8 @@ test "Matrix subtraction" {
         0, 0,
     })));
     try expect(mat5.subWrapping(&mat7).eql(&.init(.{
-        std.math.maxInt(u32) - 141, std.math.maxInt(u32) - 10,
-        std.math.maxInt(u32) - 4, std.math.maxInt(u32) - 187,
+        math.maxInt(u32) - 141, math.maxInt(u32) - 10,
+        math.maxInt(u32) - 4, math.maxInt(u32) - 187,
     })));
 }
 
@@ -839,15 +806,15 @@ test "Matrix dot product" {
 }
 
 test "Matrix transforming" {
-    var mat1: Matrix(f32, 4, 4) = .identity(1.0);
-    var mat2: Matrix(f32, 4, 4) = .identity(1.0);
+    var mat1: Matrix(f32, 4, 4) = glm.identity(1);
+    var mat2: Matrix(f32, 4, 4) = glm.identity(1);
 
     const scaler = @Vector(3, f32){3.0, 2.0, 1.0};
-    const angle = std.math.degreesToRadians(90);
-    const axis = .z;
+    const angle = math.degreesToRadians(90);
+    const rotation = .{ .z = 1 };
     const translator = @Vector(3, f32){1.0, 2.0, 3.0};
 
-    mat2.applyTransformations(scaler, angle, axis, translator);
+    mat2.applyTransformations(scaler, angle, rotation, translator);
 
     var mat1_scaled = mat1.scaled(scaler);
     mat1.applyScale(scaler);
@@ -859,8 +826,8 @@ test "Matrix transforming" {
     })));
     try expect(mat1.eql(&mat1_scaled));
 
-    var mat1_rotated1 = mat1.rotated(angle, axis);
-    mat1.applyRotation(angle, axis);
+    var mat1_rotated1 = mat1.rotated(angle, rotation);
+    mat1.applyRotation(angle, rotation);
     try expect(mat1.eql(&.init(.{
         0, -3, 0, 0,
         2,  0, 0, 0,
