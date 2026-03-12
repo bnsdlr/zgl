@@ -365,7 +365,8 @@ pub fn Matrix(comptime T: type, row_count: usize, col_count: usize) type {
         /// [OpenGL](https://registry.khronos.org/OpenGL-Refpages/gl2.1/xhtml/glRotate.xml)
         pub fn applyRotation(self: *Self, angle: f32, rotation: Rotation) void {
             if (rows == 4 and cols == 4) {
-                const normalized_rotation = rotation.normalized();
+                // const normalized_rotation = rotation.normalized();
+                const normalized_rotation = rotation;
                 const x = normalized_rotation.x;
                 const y = normalized_rotation.y;
                 const z = normalized_rotation.z;

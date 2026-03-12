@@ -1,4 +1,7 @@
 const std = @import("std");
+const math = std.math;
+
+const expectEqualDeep = std.testing.expectEqualDeep;
 
 pub const matrices = @import("glm/matrices.zig");
 pub const Matrix = matrices.Matrix;
@@ -6,6 +9,10 @@ pub const Matrix4 = Matrix(f32, 4, 4);
 
 pub const Vec4 = @Vector(4, f32);
 pub const Vec3 = @Vector(3, f32);
+
+fn pow2(x: f32) f32 {
+    return math.pow(f32, x, 2);
+}
 
 /// Creates a new identity matrix.
 /// 
@@ -93,3 +100,131 @@ pub fn perspective(fov: f32, aspect: f32, near: f32, far: f32) Matrix4 {
         0, 0, -1, 0,
     });
 }
+
+pub fn normalize(vec: *Vec3) void {
+    const magnitude: f32 = @floatCast(@sqrt(pow2(vec[0]) + pow2(vec[1]) + pow2(vec[2])));
+
+    if (math.approxEqRel(f32, magnitude, 1.0, @sqrt(math.floatEps(f32)))) return;
+
+    vec[0] /= magnitude;
+    vec[1] /= magnitude;
+    vec[2] /= magnitude;
+}
+
+pub fn normalized(vec: Vec3) Vec3 {
+    var v = vec;
+    normalize(&v);
+    return v;
+}
+
+test normalize {
+    var v1: Vec3 = .{ 1, 0, 0 };
+    _ = &v1;
+    try expectEqualDeep(Vec3{ 1, 0, 0 }, normalized(v1));
+
+    var v2: Vec3 = .{ 0, 1, 0 };
+    _ = &v2;
+    try expectEqualDeep(Vec3{ 0, 1, 0 }, normalized(v2));
+
+    var v3: Vec3 = .{ 0, 0, 1 };
+    _ = &v3;
+    try expectEqualDeep(Vec3{ 0, 0, 1}, normalized(v3));
+
+    var v4: Vec3 = .{ 1, 1, 0 };
+    _ = &v4;
+    try expectEqualDeep(Vec3{ math.sqrt1_2, math.sqrt1_2, 0 }, normalized(v4));
+
+    var v5: Vec3 = .{ 1, 0, 1 };
+    _ = &v5;
+    try expectEqualDeep(Vec3{ math.sqrt1_2, 0, math.sqrt1_2 }, normalized(v5));
+
+    var v6: Vec3 = .{ 0, 1, 1 };
+    _ = &v6;
+    try expectEqualDeep(Vec3{ 0, math.sqrt1_2, math.sqrt1_2 }, normalized(v6));
+
+    var v7: Vec3 = .{ 1, 1, 1 };
+    _ = &v7;
+    try expectEqualDeep(Vec3{ 1.0 / @sqrt(3.0), 1.0 / @sqrt(3.0), 1.0 / @sqrt(3.0) }, normalized(v7));
+
+    var v8: Vec3 = .{ 2, 0, 0 };
+    _ = &v8;
+    try expectEqualDeep(Vec3{ 1, 0, 0 }, normalized(v8));
+
+    var v9: Vec3 = .{ 2, 2, 0 };
+    _ = &v9;
+    try expectEqualDeep(Vec3{ math.sqrt1_2, math.sqrt1_2, 0 }, normalized(v9));
+
+    // var v10: Vec3 = .{ 3, 4, 0 };
+    // _ = &v10;
+    // try expectEqualDeep(Vec3{ @as(f16, 3) / 5, @as(f16, 4) / 5, 0 }, normalized(v10));
+}
+
+pub fn cross(a: Vec3, b: Vec3) Vec3 {
+    return Vec3{
+        a[1] * b[2] - a[2] * b[1],
+        a[2] * b[0] - a[0] * b[2],
+        a[0] * b[1] - a[1] * b[0],
+    };
+    // const A = @TypeOf(a);
+    // const B = @TypeOf(b);
+    //
+    // switch (@typeInfo(A)) {
+    //     .vector => |a_info| {
+    //         switch (@typeInfo(B)) {
+    //             .vector => |b_info| {
+    //                 if (a_info.len != b_info.len or a_info.child != b_info.child) 
+    //                     @compileError("Cannot calculate the cross product for " 
+    //                         ++ @typeName(A) ++ " x " ++ @typeName(B));
+    //
+    //                 if (a_info.len == 3) {
+    //                 } else {
+    //                     @compileError("Did not implement cross product for vectors of length " 
+    //                         ++ a_info.len);
+    //                 }
+    //             },
+    //             .@"struct" => |_| {
+    //             },
+    //             else => @compileError(
+    //                 "Cross product is not implemented for " ++ @typeName(A) ++ " x " ++ @typeName(B)),
+    //         }
+    //     },
+    //     .@"struct" => |_| {
+    //     },
+    //     else => @compileError("Corss product is only implemented for Matrices and Vectors."),
+    // }
+}
+
+pub fn lookAt(pos: Vec3, target: Vec3, world_up: Vec3) Matrix4 {
+    // z-axis
+    const direction: Vec3 = normalized(pos - target);
+    // postitive x-axis
+    const right: Vec3 = normalized(cross(normalized(world_up), direction));
+    // y-axis
+    const up: Vec3 = cross(direction, right);
+
+    const translation: Matrix4 = .init(.{
+        right[0], right[1], right[2], 0,
+        up[0], up[1], up[2], 0,
+        direction[0], direction[1], direction[2], 0,
+        0, 0, 0, 1,
+    });
+
+    const rotation: Matrix4 = .init(.{
+        1, 0, 0, -pos[0],
+        0, 1, 0, -pos[1],
+        0, 0, 1, -pos[2],
+        0, 0, 0, 1,
+    });
+
+    // this makes you spin around pos...
+    // return rotation.dotProduct(Matrix4, &translation);
+    return translation.dotProduct(Matrix4, &rotation);
+}
+
+// pub fn direction(pitch: f32, yaw: f32) Vec3 {
+//     return .{
+//         math.cos(math.degreesToRadians(yaw)) * math.cos(math.degreesToRadians(pitch)),
+//         math.cos(math.degreesToRadians(pitch)),
+//         math.sin(math.degreesToRadians(yaw)) * math.cos(math.degreesToRadians(pitch)),
+//     };
+// }
